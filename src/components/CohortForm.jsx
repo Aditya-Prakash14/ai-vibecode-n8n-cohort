@@ -102,7 +102,7 @@ const CohortForm = () => {
               type="text"
               value={formData.fullName}
               onChange={(e) => updateField("fullName", e.target.value)}
-              placeholder="Enter your full name"
+              placeholder="e.g., Rahul Sharma"
               className="w-full px-6 py-4 bg-n-7 border border-n-6 rounded-xl text-n-1 placeholder:text-n-4 focus:border-color-1 focus:outline-none text-lg"
               autoFocus
             />
@@ -120,7 +120,7 @@ const CohortForm = () => {
               type="email"
               value={formData.email}
               onChange={(e) => updateField("email", e.target.value)}
-              placeholder="your.email@example.com"
+              placeholder="e.g., rahul.sharma@gmail.com"
               className="w-full px-6 py-4 bg-n-7 border border-n-6 rounded-xl text-n-1 placeholder:text-n-4 focus:border-color-1 focus:outline-none text-lg"
               autoFocus
             />
@@ -138,7 +138,7 @@ const CohortForm = () => {
               type="tel"
               value={formData.phone}
               onChange={(e) => updateField("phone", e.target.value)}
-              placeholder="+1 234 567 8900"
+              placeholder="+91 98765 43210"
               className="w-full px-6 py-4 bg-n-7 border border-n-6 rounded-xl text-n-1 placeholder:text-n-4 focus:border-color-1 focus:outline-none text-lg"
               autoFocus
             />
