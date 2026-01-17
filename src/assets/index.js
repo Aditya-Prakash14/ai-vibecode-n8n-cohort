@@ -15,6 +15,10 @@ import yourlogo from "./yourlogo.svg";
 const boltnewLogo = "/boltnew.png";
 const geminiLogo = "/Google_Gemini_icon_2025.svg.png";
 const cursorLogo = "/cursor-ai.png";
+const n8nLogo = "/n8n.png";
+const anthropicLogo = "/Anthropic-Circle-Logo.webp";
+const antigravityLogo = "/antigravity.webp";
+const perplexityLogo = "/Perplaxcity.png";
 
 import homeSmile from "./home-smile.svg";
 import file02 from "./file-02.svg";
@@ -98,6 +102,10 @@ export {
   boltnewLogo,
   geminiLogo,
   cursorLogo,
+  n8nLogo,
+  anthropicLogo,
+  antigravityLogo,
+  perplexityLogo,
   homeSmile,
   file02,
   searchMd,
