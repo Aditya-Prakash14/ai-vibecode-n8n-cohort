@@ -2,10 +2,21 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Section from "./Section";
 import Button from "./Button";
+import { supabase } from "../lib/supabase";
+
+// Email validation regex
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Phone validation regex (Indian format)
+const PHONE_REGEX = /^(\+91[\-\s]?)?[0]?(91)?[6789]\d{9}$/;
 
 const CohortForm = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAlreadyRegistered, setIsAlreadyRegistered] = useState(false);
+  const [registrationError, setRegistrationError] = useState("");
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [transactionDetails, setTransactionDetails] = useState(null);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -29,22 +40,100 @@ const CohortForm = () => {
     };
   }, []);
 
-  const handleNext = () => {
+  // Check if user is already registered
+  const checkExistingRegistration = async (email, phone) => {
+    try {
+      setIsLoading(true);
+      setRegistrationError("");
+      
+      // Sanitize inputs
+      const sanitizedEmail = email.toLowerCase().trim();
+      const sanitizedPhone = phone.replace(/[\s\-]/g, '').trim();
+      
+      // Check by email
+      const { data: emailData, error: emailError } = await supabase
+        .from('cohort_registrations')
+        .select('id, email, payment_status')
+        .eq('email', sanitizedEmail)
+        .eq('payment_status', 'completed')
+        .single();
+
+      if (emailData) {
+        setIsAlreadyRegistered(true);
+        setRegistrationError("You are already registered for this cohort with this email!");
+        return true;
+      }
+
+      // Check by phone
+      const { data: phoneData, error: phoneError } = await supabase
+        .from('cohort_registrations')
+        .select('id, phone, payment_status')
+        .eq('phone', sanitizedPhone)
+        .eq('payment_status', 'completed')
+        .single();
+
+      if (phoneData) {
+        setIsAlreadyRegistered(true);
+        setRegistrationError("You are already registered for this cohort with this phone number!");
+        return true;
+      }
+
+      return false;
+    } catch (err) {
+      console.error("Error checking registration:", err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Validate inputs
+  const validateEmail = (email) => EMAIL_REGEX.test(email);
+  const validatePhone = (phone) => PHONE_REGEX.test(phone.replace(/[\s\-]/g, ''));
+  const sanitizeInput = (input) => input.trim().replace(/<[^>]*>/g, ''); // Remove HTML tags
+
+  const handleNext = async () => {
+    // Validate before proceeding
+    if (step === 2 && !validateEmail(formData.email)) {
+      setRegistrationError("Please enter a valid email address");
+      return;
+    }
+    if (step === 3 && !validatePhone(formData.phone)) {
+      setRegistrationError("Please enter a valid phone number");
+      return;
+    }
+    
+    // Check if already registered after phone step
+    if (step === 3) {
+      const isRegistered = await checkExistingRegistration(formData.email, formData.phone);
+      if (isRegistered) return;
+    }
+    
+    setRegistrationError("");
     if (step < totalSteps) {
       setStep(step + 1);
     }
   };
 
   const handlePrev = () => {
+    setRegistrationError("");
+    setIsAlreadyRegistered(false);
     if (step > 1) {
       setStep(step - 1);
     }
   };
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
+    // Final security check before payment
+    const isRegistered = await checkExistingRegistration(formData.email, formData.phone);
+    if (isRegistered) {
+      alert("You are already registered for this cohort!");
+      return;
+    }
+
     const options = {
-      key: "YOUR_RAZORPAY_KEY_ID", // Replace with your Razorpay Key ID
-      amount: 89900, // Amount in paise (₹899 = 89900 paise)
+      key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+      amount: 149900, // Amount in paise (₹1499 = 149900 paise)
       currency: "INR",
       name: "REvamp AI Cohort",
       description: "One Month Agentic AI & Vibe Coding Cohort",
@@ -57,15 +146,76 @@ const CohortForm = () => {
       theme: {
         color: "#AC6AFF",
       },
-      handler: function (response) {
-        // Payment successful
-        console.log("Payment successful:", response);
-        console.log("Form Data:", formData);
-        // Here you would typically send the data to your backend
-        alert(
-          `Payment Successful! Payment ID: ${response.razorpay_payment_id}\n\nWelcome to REvamp! We'll add you to the WhatsApp group shortly.`
-        );
-        navigate("/");
+      handler: async function (response) {
+        // Payment successful - Save to Supabase
+        const transactionTime = new Date().toLocaleString('en-IN', {
+          dateStyle: 'full',
+          timeStyle: 'medium',
+          timeZone: 'Asia/Kolkata'
+        });
+
+        try {
+          // Sanitize all inputs before saving
+          const sanitizedData = {
+            full_name: sanitizeInput(formData.fullName),
+            email: formData.email.toLowerCase().trim(),
+            phone: formData.phone.replace(/[\s\-]/g, '').trim(),
+            experience: sanitizeInput(formData.experience),
+            goal: sanitizeInput(formData.goal),
+            background: sanitizeInput(formData.background),
+            commitment: sanitizeInput(formData.commitment),
+            payment_id: response.razorpay_payment_id,
+            razorpay_order_id: response.razorpay_order_id || null,
+            razorpay_signature: response.razorpay_signature || null,
+            payment_status: 'completed',
+            amount: 1499,
+            transaction_time: new Date().toISOString(),
+          };
+
+          const { data, error } = await supabase
+            .from('cohort_registrations')
+            .insert([sanitizedData])
+            .select();
+
+          if (error) {
+            console.error("Supabase error:", error);
+            if (error.code === '23505') {
+              // Duplicate entry error
+              setIsAlreadyRegistered(true);
+              return;
+            }
+          } else {
+            console.log("Data saved to Supabase:", data);
+          }
+
+          // Store transaction details for display
+          setTransactionDetails({
+            paymentId: response.razorpay_payment_id,
+            orderId: response.razorpay_order_id || 'N/A',
+            amount: '₹1499',
+            name: formData.fullName,
+            email: formData.email,
+            phone: formData.phone,
+            date: transactionTime,
+            status: 'Success'
+          });
+          setPaymentSuccess(true);
+
+        } catch (err) {
+          console.error("Error saving to Supabase:", err);
+          // Still show success since payment went through
+          setTransactionDetails({
+            paymentId: response.razorpay_payment_id,
+            orderId: response.razorpay_order_id || 'N/A',
+            amount: '₹1499',
+            name: formData.fullName,
+            email: formData.email,
+            phone: formData.phone,
+            date: transactionTime,
+            status: 'Success'
+          });
+          setPaymentSuccess(true);
+        }
       },
       modal: {
         ondismiss: function () {
@@ -86,15 +236,149 @@ const CohortForm = () => {
   };
 
   const updateField = (field, value) => {
-    setFormData({ ...formData, [field]: value });
+    setRegistrationError("");
+    setFormData({ ...formData, [field]: sanitizeInput(value) });
   };
+
+  // Render payment success with transaction details
+  if (paymentSuccess && transactionDetails) {
+    return (
+      <Section className="pt-[12rem] -mt-[5.25rem]" crosses crossesOffset="lg:translate-y-[5.25rem]">
+        <div className="container">
+          <div className="max-w-3xl mx-auto">
+            <div className="p-8 bg-white border-2 border-green-400 rounded-2xl shadow-lg" id="transaction-receipt">
+              {/* Success Header */}
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-4xl">✓</span>
+                </div>
+                <h2 className="h2 text-n-8 mb-2">Payment Successful!</h2>
+                <p className="body-1 text-green-600 font-semibold">Welcome to REvamp AI Cohort</p>
+              </div>
+
+              {/* Transaction Details */}
+              <div className="bg-n-2 rounded-xl p-6 mb-6">
+                <h3 className="h5 text-n-8 mb-4 text-center">📋 Transaction Receipt</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 border-b border-n-3">
+                    <span className="text-n-6 font-medium">Payment ID</span>
+                    <span className="text-n-8 font-code font-bold">{transactionDetails.paymentId}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-n-3">
+                    <span className="text-n-6 font-medium">Amount Paid</span>
+                    <span className="text-n-8 font-bold text-xl">{transactionDetails.amount}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-n-3">
+                    <span className="text-n-6 font-medium">Name</span>
+                    <span className="text-n-8">{transactionDetails.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-n-3">
+                    <span className="text-n-6 font-medium">Email</span>
+                    <span className="text-n-8">{transactionDetails.email}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-n-3">
+                    <span className="text-n-6 font-medium">Phone</span>
+                    <span className="text-n-8">{transactionDetails.phone}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-n-3">
+                    <span className="text-n-6 font-medium">Date & Time</span>
+                    <span className="text-n-8 text-sm">{transactionDetails.date}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-n-6 font-medium">Status</span>
+                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold">
+                      {transactionDetails.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Screenshot Warning */}
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">📸</span>
+                  <div>
+                    <h4 className="font-bold text-yellow-800 mb-1">Important: Take a Screenshot Now!</h4>
+                    <p className="text-yellow-700 text-sm">
+                      Please take a screenshot of this receipt and save it for your records. 
+                      This is your proof of payment and registration.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Next Steps */}
+              <div className="bg-color-1/10 rounded-xl p-4 mb-6">
+                <h4 className="font-bold text-n-8 mb-3">🚀 What's Next?</h4>
+                <ul className="space-y-2 text-n-6 text-sm">
+                  <li className="flex items-start gap-2">
+                    <span className="text-color-1">✓</span>
+                    <span>You'll receive a confirmation email shortly</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-color-1">✓</span>
+                    <span>We'll add you to the WhatsApp group within 24 hours</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-color-1">✓</span>
+                    <span>Cohort details and schedule will be shared in the group</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Contact Info */}
+              <p className="text-center text-n-5 text-sm mb-6">
+                For any queries, contact us at <span className="font-semibold text-color-1">support@revamp.ai</span>
+              </p>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button onClick={() => window.print()} white>
+                  🖨️ Print Receipt
+                </Button>
+                <Button onClick={() => navigate("/")}>
+                  Back to Home
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Section>
+    );
+  }
+
+  // Render already registered message
+  if (isAlreadyRegistered) {
+    return (
+      <Section className="pt-[12rem] -mt-[5.25rem]" crosses crossesOffset="lg:translate-y-[5.25rem]">
+        <div className="container">
+          <div className="max-w-3xl mx-auto text-center">
+            <div className="p-8 bg-white border-2 border-color-1 rounded-2xl shadow-lg">
+              <div className="text-6xl mb-6">🎉</div>
+              <h2 className="h2 mb-4 text-n-8">You're Already Part of the Cohort!</h2>
+              <p className="body-1 text-n-6 mb-8">
+                Great news! You have already registered for the REvamp AI Cohort. 
+                We're excited to have you on board!
+              </p>
+              <p className="body-2 text-n-5 mb-8">
+                If you haven't received access to the WhatsApp group yet, please contact us at support@revamp.ai
+              </p>
+              <Button onClick={() => navigate("/")} white>
+                Back to Home
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Section>
+    );
+  }
 
   const renderStep = () => {
     switch (step) {
       case 1:
         return (
           <div className="animate-fadeIn">
-            <h2 className="h2 mb-6">Welcome to REvamp! 👋</h2>
+            <h2 className="h2 mb-6 text-n-1">Welcome to REvamp! 👋</h2>
             <p className="body-1 text-n-3 mb-8">
               Let's start with your name
             </p>
@@ -292,7 +576,7 @@ const CohortForm = () => {
                   <p className="text-sm text-n-3">Weekend Program | Live + Recordings</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-3xl font-bold text-n-1">₹899</p>
+                  <p className="text-3xl font-bold text-n-1">₹1499</p>
                 </div>
               </div>
               
@@ -336,13 +620,14 @@ const CohortForm = () => {
   };
 
   const canProceed = () => {
+    if (isLoading) return false;
     switch (step) {
       case 1:
-        return formData.fullName.trim() !== "";
+        return formData.fullName.trim() !== "" && formData.fullName.trim().length >= 2;
       case 2:
-        return formData.email.trim() !== "" && formData.email.includes("@");
+        return validateEmail(formData.email);
       case 3:
-        return formData.phone.trim() !== "";
+        return validatePhone(formData.phone);
       case 4:
         return formData.experience !== "";
       case 5:
@@ -363,23 +648,30 @@ const CohortForm = () => {
           {/* Progress bar */}
           <div className="mb-12">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-n-3">
+              <span className="text-sm text-n-6">
                 Question {step} of {totalSteps}
               </span>
               <button
                 onClick={() => navigate("/")}
-                className="text-sm text-n-3 hover:text-n-1 transition-colors"
+                className="text-sm text-n-6 hover:text-n-8 transition-colors"
               >
                 ✕ Close
               </button>
             </div>
-            <div className="h-1 bg-n-6 rounded-full overflow-hidden">
+            <div className="h-1 bg-n-3 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-color-1 to-color-2 transition-all duration-500"
                 style={{ width: `${(step / totalSteps) * 100}%` }}
               />
             </div>
           </div>
+
+          {/* Error message */}
+          {registrationError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+              <p className="text-red-600 text-sm font-medium">{registrationError}</p>
+            </div>
+          )}
 
           {/* Form content */}
           <div className="min-h-[400px]">{renderStep()}</div>
@@ -388,23 +680,23 @@ const CohortForm = () => {
           <div className="flex justify-between items-center mt-12">
             <button
               onClick={handlePrev}
-              disabled={step === 1}
+              disabled={step === 1 || isLoading}
               className={`px-6 py-3 rounded-xl font-code text-sm transition-colors ${
-                step === 1
-                  ? "text-n-4 cursor-not-allowed"
-                  : "text-n-1 hover:text-color-1"
+                step === 1 || isLoading
+                  ? "text-n-5 cursor-not-allowed"
+                  : "text-n-8 hover:text-color-1"
               }`}
             >
               ← Back
             </button>
 
             {step < totalSteps ? (
-              <Button onClick={handleNext} disabled={!canProceed()}>
-                Continue →
+              <Button onClick={handleNext} disabled={!canProceed() || isLoading}>
+                {isLoading ? "Checking..." : "Continue →"}
               </Button>
             ) : (
-              <Button onClick={handlePayment} disabled={!canProceed()}>
-                Proceed to Payment →
+              <Button onClick={handlePayment} disabled={!canProceed() || isLoading}>
+                {isLoading ? "Please wait..." : "Proceed to Payment →"}
               </Button>
             )}
           </div>

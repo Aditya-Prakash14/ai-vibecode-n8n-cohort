@@ -44,21 +44,26 @@ export const navigation = [
   },
   {
     id: "1",
+    title: "What You'll Learn",
+    url: "#how-to-use",
+  },
+  {
+    id: "2",
     title: "Pricing",
     url: "#pricing",
   },
   {
-    id: "2",
-    title: "How to use",
-    url: "#how-to-use",
-  },
-  {
     id: "3",
-    title: "Roadmap",
+    title: "Curriculum",
     url: "#roadmap",
   },
   {
     id: "4",
+    title: "Timeline",
+    url: "#timeline",
+  },
+  {
+    id: "5",
     title: "Join the Cohort",
     url: "#pricing",
     onlyMobile: true,
@@ -204,7 +209,7 @@ export const pricing = [
     id: "0",
     title: "One Month Cohort",
     description: "1 Month | Saturdays & Sundays | Live + Recordings",
-    price: "899",
+    price: "1499",
     features: [
       "8 live Vibe Coding sessions (every Sat & Sun)",
       "Build 10+ AI projects: GenAI, n8n automation, Agentic AI",
