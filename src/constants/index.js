@@ -34,6 +34,9 @@ import {
   telegram,
   twitter,
   yourlogo,
+  boltnewLogo,
+  geminiLogo,
+  cursorLogo,
 } from "../assets";
 
 export const navigation = [
@@ -74,7 +77,7 @@ export const heroIcons = [homeSmile, file02, searchMd, plusSquare];
 
 export const notificationImages = [notification4, notification3, notification2];
 
-export const companyLogos = [yourlogo, yourlogo, yourlogo, yourlogo, yourlogo];
+export const companyLogos = [boltnewLogo, geminiLogo, cursorLogo];
 
 export const brainwaveServices = [
   "Vibe Coding Sessions",
@@ -281,31 +284,13 @@ export const socials = [
     id: "0",
     title: "Discord",
     iconUrl: discordBlack,
-    url: "#",
+    url: "https://discord.gg/GGAnSN3E",
   },
   {
     id: "1",
-    title: "Twitter",
-    iconUrl: twitter,
-    url: "#",
-  },
-  {
-    id: "2",
     title: "Instagram",
     iconUrl: instagram,
-    url: "#",
-  },
-  {
-    id: "3",
-    title: "Telegram",
-    iconUrl: telegram,
-    url: "#",
-  },
-  {
-    id: "4",
-    title: "Facebook",
-    iconUrl: facebook,
-    url: "#",
+    url: "https://www.instagram.com/letsrevamp.here/",
   },
 ];
 
