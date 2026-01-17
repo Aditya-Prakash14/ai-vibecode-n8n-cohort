@@ -19,6 +19,11 @@ const n8nLogo = "/n8n.png";
 const anthropicLogo = "/Anthropic-Circle-Logo.webp";
 const antigravityLogo = "/antigravity.webp";
 const perplexityLogo = "/Perplaxcity.png";
+const agentLogo = "/agent.png";
+const huggingfaceLogo = "/huggingface-2.svg";
+const kaggleLogo = "/kaggle.png";
+const chatgptLogo = "/chatgpt.png";
+const windsurfLogo = "/windsurf-white-symbol.png";
 
 import homeSmile from "./home-smile.svg";
 import file02 from "./file-02.svg";
@@ -106,6 +111,11 @@ export {
   anthropicLogo,
   antigravityLogo,
   perplexityLogo,
+  agentLogo,
+  huggingfaceLogo,
+  kaggleLogo,
+  chatgptLogo,
+  windsurfLogo,
   homeSmile,
   file02,
   searchMd,
