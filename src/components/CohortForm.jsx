@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Section from "./Section";
 import Button from "./Button";
 import { supabase } from "../lib/supabase";
+import { useStudentCounts } from "../hooks/useStudentCounts";
 
 // Email validation regex
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -11,6 +12,7 @@ const PHONE_REGEX = /^(\+91[\-\s]?)?[0]?(91)?[6789]\d{9}$/;
 
 const CohortForm = () => {
   const navigate = useNavigate();
+  const { counts, isLoading: countsLoading } = useStudentCounts();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isAlreadyRegistered, setIsAlreadyRegistered] = useState(false);
@@ -25,9 +27,10 @@ const CohortForm = () => {
     goal: "",
     background: "",
     commitment: "",
+    pricingTier: "",
   });
 
-  const totalSteps = 8;
+  const totalSteps = 9;
 
   // Load Razorpay script
   useEffect(() => {
@@ -131,12 +134,21 @@ const CohortForm = () => {
       return;
     }
 
+    // Get pricing details based on selected tier
+    const pricingDetails = {
+      basic: { amount: 79900, price: 799, name: "Basic Plan" },
+      premium: { amount: 119900, price: 1199, name: "Premium Plan" },
+      plus: { amount: 149900, price: 1499, name: "Plus Plan" }
+    };
+    
+    const selectedPlan = pricingDetails[formData.pricingTier];
+
     const options = {
       key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-      amount: 149900, // Amount in paise (₹1499 = 149900 paise)
+      amount: selectedPlan.amount, // Amount in paise
       currency: "INR",
       name: "REvamp AI Cohort",
-      description: "One Month Agentic AI & Vibe Coding Cohort",
+      description: `${selectedPlan.name} - Agentic AI & Vibe Coding Cohort`,
       image: "/logo.png", // Add your logo path
       prefill: {
         name: formData.fullName,
@@ -164,11 +176,12 @@ const CohortForm = () => {
             goal: sanitizeInput(formData.goal),
             background: sanitizeInput(formData.background),
             commitment: sanitizeInput(formData.commitment),
+            pricing_tier: formData.pricingTier,
             payment_id: response.razorpay_payment_id,
             razorpay_order_id: response.razorpay_order_id || null,
             razorpay_signature: response.razorpay_signature || null,
             payment_status: 'completed',
-            amount: 1499,
+            amount: selectedPlan.price,
             transaction_time: new Date().toISOString(),
           };
 
@@ -192,7 +205,8 @@ const CohortForm = () => {
           setTransactionDetails({
             paymentId: response.razorpay_payment_id,
             orderId: response.razorpay_order_id || 'N/A',
-            amount: '₹1499',
+            amount: `₹${selectedPlan.price}`,
+            plan: selectedPlan.name,
             name: formData.fullName,
             email: formData.email,
             phone: formData.phone,
@@ -207,7 +221,9 @@ const CohortForm = () => {
           setTransactionDetails({
             paymentId: response.razorpay_payment_id,
             orderId: response.razorpay_order_id || 'N/A',
-            amount: '₹1499',
+            amount: `₹${selectedPlan.price}`,
+            plan: selectedPlan.name,
+            plan: selectedPlan.name,
             name: formData.fullName,
             email: formData.email,
             phone: formData.phone,
@@ -263,6 +279,10 @@ const CohortForm = () => {
                   <div className="flex justify-between items-center py-2 border-b border-n-3">
                     <span className="text-n-6 font-medium">Payment ID</span>
                     <span className="text-n-8 font-code font-bold">{transactionDetails.paymentId}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-n-3">
+                    <span className="text-n-6 font-medium">Plan</span>
+                    <span className="text-n-8 font-semibold">{transactionDetails.plan}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-n-3">
                     <span className="text-n-6 font-medium">Amount Paid</span>
@@ -564,6 +584,133 @@ const CohortForm = () => {
       case 8:
         return (
           <div className="animate-fadeIn">
+            <h2 className="h2 mb-6">Choose Your Plan 💎</h2>
+            <p className="body-1 text-n-3 mb-8">
+              Select the plan that best fits your goals
+            </p>
+            <div className="space-y-4">
+              {/* Basic Plan */}
+              <button
+                onClick={() => {
+                  updateField("pricingTier", "basic");
+                }}
+                className={`w-full p-6 bg-n-7 border-2 rounded-xl text-left transition-all hover:border-color-1 hover:bg-n-6 relative ${
+                  formData.pricingTier === "basic"
+                    ? "border-color-1 bg-n-6"
+                    : "border-n-6"
+                }`}
+              >
+                <div className="absolute top-3 right-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 py-1 rounded-full font-bold text-xs shadow-lg">
+                  20% OFF
+                </div>
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h4 className="text-xl font-bold text-n-1 mb-1">Basic</h4>
+                    <p className="text-sm text-n-4">Essential AI Development Skills</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-n-4 line-through">₹1000</p>
+                    <p className="text-2xl font-bold text-n-1">₹799</p>
+                  </div>
+                </div>
+                <ul className="space-y-2 text-sm text-n-3">
+                  <li>✓ Vibe Coding 101</li>
+                  <li>✓ Gen AI in Web Apps</li>
+                  <li>✓ 3 Industry-Accepted Projects</li>
+                </ul>
+                <div className="mt-4 pt-4 border-t border-n-6">
+                  <p className="text-xs text-color-1 text-center">
+                    {countsLoading ? "Loading..." : `🔥 ${counts.basic || 0} students joined already`}
+                  </p>
+                </div>
+              </button>
+
+              {/* Premium Plan */}
+              <button
+                onClick={() => {
+                  updateField("pricingTier", "premium");
+                }}
+                className={`w-full p-6 bg-n-7 border-2 rounded-xl text-left transition-all hover:border-color-1 hover:bg-n-6 relative ${
+                  formData.pricingTier === "premium"
+                    ? "border-color-1 bg-n-6"
+                    : "border-n-6"
+                }`}
+              >
+                <div className="absolute top-3 right-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 py-1 rounded-full font-bold text-xs shadow-lg">
+                  20% OFF
+                </div>
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h4 className="text-xl font-bold text-n-1 mb-1">Premium</h4>
+                    <p className="text-sm text-n-4">Full-Stack AI Mastery</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-n-4 line-through">₹1500</p>
+                    <p className="text-2xl font-bold text-n-1">₹1199</p>
+                  </div>
+                </div>
+                <ul className="space-y-2 text-sm text-n-3">
+                  <li>✓ 5 Full-Stack AI Projects</li>
+                  <li>✓ LangChain & LangGraph</li>
+                  <li>✓ Agentic AI Systems</li>
+                </ul>
+                <div className="mt-4 pt-4 border-t border-n-6">
+                  <p className="text-xs text-color-1 text-center">
+                    {countsLoading ? "Loading..." : `🔥 ${counts.premium || 0} students joined already`}
+                  </p>
+                </div>
+              </button>
+
+              {/* Plus Plan */}
+              <button
+                onClick={() => {
+                  updateField("pricingTier", "plus");
+                }}
+                className={`w-full p-6 bg-n-7 border-2 rounded-xl text-left transition-all hover:border-color-1 hover:bg-n-6 relative ${
+                  formData.pricingTier === "plus"
+                    ? "border-color-1 bg-n-6"
+                    : "border-n-6"
+                }`}
+              >
+                <div className="absolute top-3 right-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-3 py-1 rounded-full font-bold text-xs shadow-lg">
+                  20% OFF
+                </div>
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h4 className="text-xl font-bold text-n-1 mb-1">Plus ⭐</h4>
+                    <p className="text-sm text-n-4">Everything Included</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-n-4 line-through">₹1800</p>
+                    <p className="text-2xl font-bold text-n-1">₹1499</p>
+                  </div>
+                </div>
+                <ul className="space-y-2 text-sm text-n-3">
+                  <li>✓ 10+ AI Projects</li>
+                  <li>✓ Live Weekend Sessions</li>
+                  <li>✓ Complete Tech Stack</li>
+                  <li>✓ Kaggle Portfolio Capstone</li>
+                </ul>
+                <div className="mt-4 pt-4 border-t border-n-6">
+                  <p className="text-xs text-color-1 text-center">
+                    {countsLoading ? "Loading..." : `🔥 ${counts.plus || 0} students joined already`}
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+        );
+
+      case 9:
+        const planDetails = {
+          basic: { name: "Basic", price: 799, originalPrice: 1000, features: ["Vibe Coding 101", "Gen AI in Web Apps", "3 Industry Projects", "Lifetime recordings access"] },
+          premium: { name: "Premium", price: 1199, originalPrice: 1500, features: ["5 Full-Stack AI Projects", "LangChain & LangGraph mastery", "Agentic AI systems", "VPS setup guidance", "Lifetime access"] },
+          plus: { name: "Plus", price: 1499, originalPrice: 1800, features: ["8 live Vibe Coding sessions", "10+ AI projects", "Full tech stack mastery", "Kaggle capstone project", "Lifetime access + VPS setup"] }
+        };
+        const selectedPlanDetails = planDetails[formData.pricingTier] || planDetails.plus;
+        
+        return (
+          <div className="animate-fadeIn">
             <h2 className="h2 mb-6">Secure Your Spot! 🎉</h2>
             <p className="body-1 text-n-3 mb-8">
               Complete your registration with a one-time payment
@@ -572,31 +719,22 @@ const CohortForm = () => {
             <div className="p-8 bg-n-7 border-2 border-n-6 rounded-2xl mb-8">
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h4 className="h4 mb-2">One Month Cohort</h4>
-                  <p className="text-sm text-n-3">Weekend Program | Live + Recordings</p>
+                  <h4 className="h4 mb-2">{selectedPlanDetails.name} Plan</h4>
+                  <p className="text-sm text-n-3">Pay once, use forever</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-3xl font-bold text-n-1">₹1499</p>
+                  <p className="text-sm text-n-4 line-through">₹{selectedPlanDetails.originalPrice}</p>
+                  <p className="text-3xl font-bold text-n-1">₹{selectedPlanDetails.price}</p>
                 </div>
               </div>
               
               <div className="space-y-3 mb-6">
-                <div className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-color-1 mt-2 flex-shrink-0" />
-                  <p className="text-sm text-n-3">8 live Vibe Coding sessions (Saturdays & Sundays)</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-color-1 mt-2 flex-shrink-0" />
-                  <p className="text-sm text-n-3">Build 10+ AI projects with LangChain, n8n & Agentic AI</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-color-1 mt-2 flex-shrink-0" />
-                  <p className="text-sm text-n-3">Lifetime access to recordings and materials</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-color-1 mt-2 flex-shrink-0" />
-                  <p className="text-sm text-n-3">WhatsApp community + Kaggle portfolio capstone</p>
-                </div>
+                {selectedPlanDetails.features.map((feature, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-color-1 mt-2 flex-shrink-0" />
+                    <p className="text-sm text-n-3">{feature}</p>
+                  </div>
+                ))}
               </div>
               
               <div className="pt-6 border-t border-n-6">
@@ -636,6 +774,8 @@ const CohortForm = () => {
         return formData.background !== "";
       case 7:
         return formData.commitment !== "";
+      case 8:
+        return formData.pricingTier !== "";
       default:
         return false;
     }

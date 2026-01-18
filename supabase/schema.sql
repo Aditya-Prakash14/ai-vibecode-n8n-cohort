@@ -11,11 +11,12 @@ CREATE TABLE IF NOT EXISTS cohort_registrations (
   goal TEXT,
   background TEXT,
   commitment TEXT,
+  pricing_tier TEXT NOT NULL CHECK (pricing_tier IN ('basic', 'premium', 'plus')),
   payment_id TEXT UNIQUE,
   razorpay_order_id TEXT,
   razorpay_signature TEXT,
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'completed', 'failed', 'refunded')),
-  amount DECIMAL(10,2) NOT NULL DEFAULT 1499.00,
+  amount DECIMAL(10,2) NOT NULL,
   transaction_time TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -78,3 +79,53 @@ BEGIN
     EXISTS(SELECT 1 FROM cohort_registrations WHERE phone = user_phone AND payment_status = 'completed');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get student counts by pricing tier
+CREATE OR REPLACE FUNCTION get_student_counts_by_tier()
+RETURNS TABLE(pricing_tier TEXT, student_count BIGINT) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    cr.pricing_tier,
+    COUNT(*)::BIGINT as student_count
+  FROM cohort_registrations cr
+  WHERE cr.payment_status = 'completed'
+  GROUP BY cr.pricing_tier;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create a materialized view for faster access (optional, refresh periodically)
+CREATE MATERIALIZED VIEW IF NOT EXISTS student_counts_by_tier AS
+SELECT 
+  pricing_tier,
+  COUNT(*)::BIGINT as student_count
+FROM cohort_registrations
+WHERE payment_status = 'completed'
+GROUP BY pricing_tier;
+
+-- Create index on the materialized view
+CREATE UNIQUE INDEX IF NOT EXISTS idx_student_counts_tier ON student_counts_by_tier(pricing_tier);
+
+-- Function to refresh the materialized view
+CREATE OR REPLACE FUNCTION refresh_student_counts()
+RETURNS void AS $$
+BEGIN
+  REFRESH MATERIALIZED VIEW CONCURRENTLY student_counts_by_tier;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to auto-refresh counts when a payment is completed
+CREATE OR REPLACE FUNCTION trigger_refresh_counts()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.payment_status = 'completed' AND (OLD IS NULL OR OLD.payment_status != 'completed') THEN
+    PERFORM refresh_student_counts();
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_payment_completed
+  AFTER INSERT OR UPDATE ON cohort_registrations
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_refresh_counts();
